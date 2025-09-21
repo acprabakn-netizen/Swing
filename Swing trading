@@ -1,0 +1,57 @@
+# app.py - Ultra Mode AI Swing Trading App
+import streamlit as st
+import pandas as pd
+import yfinance as yf
+import ta
+import xgboost as xgb
+from sklearn.model_selection import train_test_split
+
+st.set_page_config(page_title="Ultra AI Swing Trading", layout="wide")
+st.title("🚀 Ultra AI Swing Trading Dashboard")
+
+# --- User Input ---
+threshold = st.slider("Buy Probability Threshold (%)", 50, 100, 70)
+
+# --- Fetch NSE Stocks (Demo: Nifty 500 tickers) ---
+nifty_500 = pd.read_csv("https://raw.githubusercontent.com/datasets/nifty-500/master/data/nifty500.csv")
+tickers = nifty_500['Symbol'].tolist()
+
+st.info(f"Fetching data for {len(tickers)} stocks...")
+
+# --- Data Fetching & Indicators ---
+data_list = []
+for ticker in tickers:
+    try:
+        df = yf.download(ticker + ".NS", period="1y", interval="1d")
+        if df.empty: 
+            continue
+        
+        # Technical Indicators
+        df['EMA50'] = ta.trend.EMAIndicator(df['Close'], window=50).ema_indicator()
+        df['EMA200'] = ta.trend.EMAIndicator(df['Close'], window=200).ema_indicator()
+        df['RSI'] = ta.momentum.RSIIndicator(df['Close']).rsi()
+        macd = ta.trend.MACD(df['Close'])
+        df['MACD'] = macd.macd()
+        df['MACD_signal'] = macd.macd_signal()
+        stoch = ta.momentum.StochasticOscillator(df['High'], df['Low'], df['Close'])
+        df['Stoch'] = stoch.stoch()
+        df['Volume_ratio'] = df['Volume'] / df['Volume'].rolling(20).mean()
+        
+        # Last row features
+        last_row = df.iloc[-1]
+        data_list.append({
+            'Ticker': ticker,
+            'Close': last_row['Close'],
+            'EMA50': last_row['EMA50'],
+            'EMA200': last_row['EMA200'],
+            'RSI': last_row['RSI'],
+            'MACD': last_row['MACD'],
+            'MACD_signal': last_row['MACD_signal'],
+            'Stoch': last_row['Stoch'],
+            'Volume_ratio': last_row['Volume_ratio']
+        })
+    except:
+        continue
+
+df_features = pd.DataFrame(data_list)
+st.success("Data fetched and indicators c
